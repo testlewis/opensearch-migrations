@@ -9,6 +9,7 @@ import {NetworkStack} from "./network-stack";
 import {MigrationAssistanceStack} from "./migration-assistance-stack";
 import {FetchMigrationStack} from "./fetch-migration-stack";
 import {MSKUtilityStack} from "./msk-utility-stack";
+import {MigrationAnalyticsStack} from "./service-stacks/migration-analytics-stack";
 import {MigrationConsoleStack} from "./service-stacks/migration-console-stack";
 import {CaptureProxyESStack} from "./service-stacks/capture-proxy-es-stack";
 import {TrafficReplayerStack} from "./service-stacks/traffic-replayer-stack";
@@ -94,7 +95,9 @@ export class StackComposer {
         const kafkaBrokerServiceEnabled = getContextForType('kafkaBrokerServiceEnabled', 'boolean')
         const kafkaZookeeperServiceEnabled = getContextForType('kafkaZookeeperServiceEnabled', 'boolean')
         const fetchMigrationEnabled = getContextForType('fetchMigrationEnabled', 'boolean')
+        const migrationAnalyticsServiceEnabled = getContextForType('migrationAnalyticsServiceEnabled', 'boolean')
         const dpPipelineTemplatePath = getContextForType('dpPipelineTemplatePath', 'string')
+        const otelConfigFilePath = getContextForType('otelConfigFilePath', 'string')
         const sourceClusterEndpoint = getContextForType('sourceClusterEndpoint', 'string')
 
         if (!stage) {
@@ -419,6 +422,32 @@ export class StackComposer {
             migrationConsoleStack.addDependency(openSearchStack)
             this.stacks.push(migrationConsoleStack)
         }
+
+        let migrationAnalyticsStack
+        if (migrationAnalyticsServiceEnabled && networkStack) {
+            migrationAnalyticsStack = new MigrationAnalyticsStack(scope, "migration-analytics", {
+                vpc: networkStack.vpc,
+                otelConfigFilePath: otelConfigFilePath,
+                stackName: `OSMigrations-${stage}-${region}-MigrationAnalytics`,
+                description: "This stack contains resources for the Otel Collector and Analytics OS Cluster",
+                stage: stage,
+                defaultDeployId: defaultDeployId,
+                ...props,
+            })
+            // To enable the Migration Console to make requests to other service endpoints with Service Connect,
+            // it must be deployed after these services
+            if (captureProxyESStack) {
+                migrationAnalyticsStack.addDependency(captureProxyESStack)
+            }
+            if (captureProxyStack) {
+                migrationAnalyticsStack.addDependency(captureProxyStack)
+            }
+            if (elasticsearchStack) {
+                migrationAnalyticsStack.addDependency(elasticsearchStack)
+            }
+            this.stacks.push(migrationAnalyticsStack)
+        }
+
 
         function getContextForType(optionName: string, expectedType: string): any {
             const option = contextJSON[optionName]
