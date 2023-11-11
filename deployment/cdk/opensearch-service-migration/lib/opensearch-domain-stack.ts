@@ -46,7 +46,9 @@ export interface opensearchDomainStackProps extends StackPropsExt {
   readonly vpcSubnetIds?: string[],
   readonly vpcSecurityGroupIds?: string[],
   readonly availabilityZoneCount?: number,
-  readonly domainRemovalPolicy?: RemovalPolicy
+  readonly domainRemovalPolicy?: RemovalPolicy,
+  readonly domainAccessSecurityGroupParameter?: string,
+  readonly endpointParameterName?: string
 }
 
 
@@ -63,12 +65,12 @@ export class OpenSearchDomainStack extends Stack {
     let adminUserSecret: ISecret|undefined = props.fineGrainedManagerUserSecretManagerKeyARN ?
         Secret.fromSecretCompleteArn(this, "managerSecret", props.fineGrainedManagerUserSecretManagerKeyARN) : undefined
 
-
     const appLG: ILogGroup|undefined = props.appLogGroup && props.appLogEnabled ?
         LogGroup.fromLogGroupArn(this, "appLogGroup", props.appLogGroup) : undefined
 
+    const domainAccessSecurityGroupParameter = props.domainAccessSecurityGroupParameter ?? `${props.defaultDeployId}/osAccessSecurityGroupId`
     const defaultOSClusterAccessGroup = SecurityGroup.fromSecurityGroupId(this, "defaultDomainAccessSG",
-        StringParameter.valueForStringParameter(this, `/migration/${props.stage}/${props.defaultDeployId}/osAccessSecurityGroupId`))
+        StringParameter.valueForStringParameter(this, `/migration/${props.stage}/${domainAccessSecurityGroupParameter}`))
 
     // Map objects from props
 
@@ -103,7 +105,6 @@ export class OpenSearchDomainStack extends Stack {
         securityGroups.push(SecurityGroup.fromLookupById(this, "domainSecurityGroup-" + i, props.vpcSecurityGroupIds[i]))
       }
     }
-
 
     const domain = new Domain(this, 'Domain', {
       version: props.version,
@@ -147,9 +148,10 @@ export class OpenSearchDomainStack extends Stack {
       removalPolicy: props.domainRemovalPolicy
     });
 
+    const endpointParameterName = props.endpointParameterName ?? `${deployId}/osClusterEndpoint`
     new StringParameter(this, 'SSMParameterOpenSearchEndpoint', {
       description: 'OpenSearch migration parameter for OpenSearch endpoint',
-      parameterName: `/migration/${props.stage}/${deployId}/osClusterEndpoint`,
+      parameterName: `/migration/${props.stage}/${endpointParameterName}`,
       stringValue: domain.domainEndpoint
     });
 

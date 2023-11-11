@@ -97,8 +97,28 @@ export class StackComposer {
         const fetchMigrationEnabled = getContextForType('fetchMigrationEnabled', 'boolean')
         const migrationAnalyticsServiceEnabled = getContextForType('migrationAnalyticsServiceEnabled', 'boolean')
         const dpPipelineTemplatePath = getContextForType('dpPipelineTemplatePath', 'string')
-        const otelConfigFilePath = getContextForType('otelConfigFilePath', 'string')
         const sourceClusterEndpoint = getContextForType('sourceClusterEndpoint', 'string')
+
+        const analyticsDomainEngineVersion = getContextForType('analyticsDomainEngineVersion', 'string')
+        const analyticsDomainDataNodeType = getContextForType('analyticsDomainDataNodeType', 'string')
+        const analyticsDomainDataNodeCount = getContextForType('analyticsDomainDataNodeCount', 'number')
+        const analyticsDomainDedicatedManagerNodeType = getContextForType('analyticsDomainDedicatedManagerNodeType', 'string')
+        const analyticsDomainDedicatedManagerNodeCount = getContextForType('analyticsDomainDedicatedManagerNodeCount', 'number')
+        const analyticsDomainWarmNodeType = getContextForType('analyticsDomainWarmNodeType', 'string')
+        const analyticsDomainWarmNodeCount = getContextForType('analyticsDomainWarmNodeCount', 'number')
+        // const analyticsDomainUseUnsignedBasicAuth = getContextForType('analyticsDomainUseUnsignedBasicAuth', 'boolean')
+        // const analyticsDomainFineGrainedManagerUserARN = getContextForType('analyticsDomainFineGrainedManagerUserARN', 'string')
+        // const analyticsDomainFineGrainedManagerUserName = getContextForType('analyticsDomainFineGrainedManagerUserName', 'string')
+        // const analyticsDomainFineGrainedManagerUserSecretManagerKeyARN = getContextForType('analyticsDomainFineGrainedManagerUserSecretManagerKeyARN', 'string')
+        const analyticsDomainEnforceHTTPS = getContextForType('analyticsDomainEnforceHTTPS', 'boolean')
+        const analyticsDomainEbsEnabled = getContextForType('analyticsDomainEbsEnabled', 'boolean')
+        const analyticsDomainEbsIops = getContextForType('analyticsDomainEbsIops', 'number')
+        const analyticsDomainEbsVolumeSize = getContextForType('analyticsDomainEbsVolumeSize', 'number')
+        const analyticsDomainEncryptionAtRestEnabled = getContextForType('analyticsDomainEncryptionAtRestEnabled', 'boolean')
+        const analyticsDomainEncryptionAtRestKmsKeyARN = getContextForType("analyticsDomainEncryptionAtRestKmsKeyARN", 'string')
+        const analyticsDomainLoggingAppLogEnabled = getContextForType('analyticsDomainLoggingAppLogEnabled', 'boolean')
+        const analyticsDomainLoggingAppLogGroupARN = getContextForType('analyticsDomainLoggingAppLogGroupARN', 'string')
+        const analyticsDomainNoneToNodeEncryptionEnabled = getContextForType('analyticsDomainNodeToNodeEncryptionEnabled', 'boolean')
 
         if (!stage) {
             throw new Error("Required context field 'stage' is not present")
@@ -111,14 +131,7 @@ export class StackComposer {
         }
 
         const engineVersion = getContextForType('engineVersion', 'string')
-        if (engineVersion && engineVersion.startsWith("OS_")) {
-            // Will accept a period delimited version string (i.e. 1.3) and return a proper EngineVersion
-            version = EngineVersion.openSearch(engineVersion.substring(3))
-        } else if (engineVersion && engineVersion.startsWith("ES_")) {
-            version = EngineVersion.elasticsearch(engineVersion.substring(3))
-        } else {
-            throw new Error("Engine version is not present or does not match the expected format, i.e. OS_1.3 or ES_7.9")
-        }
+        version = getEngineVersion(engineVersion)
 
         if (openAccessPolicyEnabled) {
             const openPolicy = new PolicyStatement({
@@ -142,6 +155,12 @@ export class StackComposer {
         const ebsVolumeTypeName = getContextForType('ebsVolumeType', 'string')
         const ebsVolumeType: EbsDeviceVolumeType|undefined = ebsVolumeTypeName ? EbsDeviceVolumeType[ebsVolumeTypeName as keyof typeof EbsDeviceVolumeType] : undefined
         if (ebsVolumeTypeName && !ebsVolumeType) {
+            throw new Error("Provided ebsVolumeType does not match a selectable option, for reference https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_ec2.EbsDeviceVolumeType.html")
+        }
+
+        const analyticsDomainEbsVolumeTypeName = getContextForType('analyticsDomainEbsVolumeType', 'string')
+        const analyticsDomainEbsVolumeType: EbsDeviceVolumeType|undefined = analyticsDomainEbsVolumeTypeName ? EbsDeviceVolumeType[analyticsDomainEbsVolumeTypeName as keyof typeof EbsDeviceVolumeType] : undefined
+        if (analyticsDomainEbsVolumeTypeName && !analyticsDomainEbsVolumeType) {
             throw new Error("Provided ebsVolumeType does not match a selectable option, for reference https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_ec2.EbsDeviceVolumeType.html")
         }
 
@@ -243,6 +262,47 @@ export class StackComposer {
             })
             mskUtilityStack.addDependency(migrationStack)
             this.stacks.push(mskUtilityStack)
+        }
+
+        let migrationAnalyticsStack
+        if (migrationAnalyticsServiceEnabled && networkStack) {
+            migrationAnalyticsStack = new MigrationAnalyticsStack(scope, "migration-analytics", {
+                vpc: networkStack.vpc,
+                stackName: `OSMigrations-${stage}-${region}-MigrationAnalytics`,
+                description: "This stack contains resources for the Open Telemetry Collector and Analytics OS Cluster",
+                engineVersion: getEngineVersion(analyticsDomainEngineVersion ?? engineVersion), // if no analytics version is specified, use the same as the target cluster
+                dataNodeInstanceType: analyticsDomainDataNodeType,
+                dataNodes: analyticsDomainDataNodeCount,
+                dedicatedManagerNodeType: analyticsDomainDedicatedManagerNodeType,
+                dedicatedManagerNodeCount: analyticsDomainDedicatedManagerNodeCount,
+                warmInstanceType: analyticsDomainWarmNodeType,
+                warmNodes: analyticsDomainWarmNodeCount,
+                enforceHTTPS: analyticsDomainEnforceHTTPS,
+                ebsEnabled: analyticsDomainEbsEnabled,
+                ebsIops: analyticsDomainEbsIops,
+                ebsVolumeSize: analyticsDomainEbsVolumeSize,
+                ebsVolumeType: analyticsDomainEbsVolumeType,
+                encryptionAtRestEnabled: analyticsDomainEncryptionAtRestEnabled,
+                encryptionAtRestKmsKeyARN: analyticsDomainEncryptionAtRestKmsKeyARN,
+                appLogEnabled: analyticsDomainLoggingAppLogEnabled,
+                appLogGroup: analyticsDomainLoggingAppLogGroupARN,
+                nodeToNodeEncryptionEnabled: analyticsDomainNoneToNodeEncryptionEnabled,
+                stage: stage,
+                defaultDeployId: defaultDeployId,
+                ...props,
+            })
+            // To enable the Migration Console to make requests to other service endpoints with Service Connect,
+            // it must be deployed after these services
+            // if (captureProxyESStack) {
+            //     migrationAnalyticsStack.addDependency(captureProxyESStack)
+            // }
+            // if (captureProxyStack) {
+            //     migrationAnalyticsStack.addDependency(captureProxyStack)
+            // }
+            // if (elasticsearchStack) {
+            //     migrationAnalyticsStack.addDependency(elasticsearchStack)
+            // }
+            this.stacks.push(migrationAnalyticsStack)
         }
 
         // Currently, placing a requirement on a VPC for a fetch migration stack but this can be revisited
@@ -423,32 +483,6 @@ export class StackComposer {
             this.stacks.push(migrationConsoleStack)
         }
 
-        let migrationAnalyticsStack
-        if (migrationAnalyticsServiceEnabled && networkStack) {
-            migrationAnalyticsStack = new MigrationAnalyticsStack(scope, "migration-analytics", {
-                vpc: networkStack.vpc,
-                otelConfigFilePath: otelConfigFilePath,
-                stackName: `OSMigrations-${stage}-${region}-MigrationAnalytics`,
-                description: "This stack contains resources for the Otel Collector and Analytics OS Cluster",
-                stage: stage,
-                defaultDeployId: defaultDeployId,
-                ...props,
-            })
-            // To enable the Migration Console to make requests to other service endpoints with Service Connect,
-            // it must be deployed after these services
-            if (captureProxyESStack) {
-                migrationAnalyticsStack.addDependency(captureProxyESStack)
-            }
-            if (captureProxyStack) {
-                migrationAnalyticsStack.addDependency(captureProxyStack)
-            }
-            if (elasticsearchStack) {
-                migrationAnalyticsStack.addDependency(elasticsearchStack)
-            }
-            this.stacks.push(migrationAnalyticsStack)
-        }
-
-
         function getContextForType(optionName: string, expectedType: string): any {
             const option = contextJSON[optionName]
 
@@ -495,6 +529,19 @@ export class StackComposer {
                 accessPolicies.push(statement)
             }
             return accessPolicies
+        }
+
+        function getEngineVersion(engineVersionString: string) : EngineVersion {
+            let version: EngineVersion
+            if (engineVersionString && engineVersionString.startsWith("OS_")) {
+                // Will accept a period delimited version string (i.e. 1.3) and return a proper EngineVersion
+                version = EngineVersion.openSearch(engineVersionString.substring(3))
+            } else if (engineVersionString && engineVersionString.startsWith("ES_")) {
+                version = EngineVersion.elasticsearch(engineVersionString.substring(3))
+            } else {
+                throw new Error("Engine version is not present or does not match the expected format, i.e. OS_1.3 or ES_7.9")
+            }
+            return version
         }
 
     }
