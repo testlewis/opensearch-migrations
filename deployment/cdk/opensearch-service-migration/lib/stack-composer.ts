@@ -183,6 +183,7 @@ export class StackComposer {
                 stage: stage,
                 defaultDeployId: defaultDeployId,
                 addOnMigrationDeployId: addOnMigrationDeployId,
+                migrationAnalyticsEnabled: migrationAnalyticsServiceEnabled,
                 ...props,
             })
             this.stacks.push(networkStack)
@@ -268,11 +269,14 @@ export class StackComposer {
         if (migrationAnalyticsServiceEnabled && networkStack) {
             migrationAnalyticsStack = new MigrationAnalyticsStack(scope, "migration-analytics", {
                 vpc: networkStack.vpc,
+                vpcSubnetIds: vpcSubnetIds,
+                vpcSecurityGroupIds: vpcSecurityGroupIds,
+                availabilityZoneCount: availabilityZoneCount,
                 stackName: `OSMigrations-${stage}-${region}-MigrationAnalytics`,
                 description: "This stack contains resources for the Open Telemetry Collector and Analytics OS Cluster",
                 engineVersion: getEngineVersion(analyticsDomainEngineVersion ?? engineVersion), // if no analytics version is specified, use the same as the target cluster
                 dataNodeInstanceType: analyticsDomainDataNodeType,
-                dataNodes: analyticsDomainDataNodeCount,
+                dataNodes: analyticsDomainDataNodeCount ?? availabilityZoneCount,
                 dedicatedManagerNodeType: analyticsDomainDedicatedManagerNodeType,
                 dedicatedManagerNodeCount: analyticsDomainDedicatedManagerNodeCount,
                 warmInstanceType: analyticsDomainWarmNodeType,
@@ -302,6 +306,11 @@ export class StackComposer {
             // if (elasticsearchStack) {
             //     migrationAnalyticsStack.addDependency(elasticsearchStack)
             // }
+            if (networkStack) {
+                migrationAnalyticsStack.openSearchAnalyticsStack.addDependency(networkStack)
+            }
+            this.stacks.push(migrationAnalyticsStack.openSearchAnalyticsStack)
+            migrationAnalyticsStack.addDependency(migrationAnalyticsStack.openSearchAnalyticsStack)
             this.stacks.push(migrationAnalyticsStack)
         }
 

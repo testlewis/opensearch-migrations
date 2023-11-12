@@ -68,9 +68,9 @@ export class OpenSearchDomainStack extends Stack {
     const appLG: ILogGroup|undefined = props.appLogGroup && props.appLogEnabled ?
         LogGroup.fromLogGroupArn(this, "appLogGroup", props.appLogGroup) : undefined
 
-    const domainAccessSecurityGroupParameter = props.domainAccessSecurityGroupParameter ?? `${props.defaultDeployId}/osAccessSecurityGroupId`
+    const domainAccessSecurityGroupParameter = props.domainAccessSecurityGroupParameter ?? "osAccessSecurityGroupId"
     const defaultOSClusterAccessGroup = SecurityGroup.fromSecurityGroupId(this, "defaultDomainAccessSG",
-        StringParameter.valueForStringParameter(this, `/migration/${props.stage}/${domainAccessSecurityGroupParameter}`))
+        StringParameter.valueForStringParameter(this, `/migration/${props.stage}/${props.defaultDeployId}/${domainAccessSecurityGroupParameter}`))
 
     // Map objects from props
 
@@ -148,10 +148,10 @@ export class OpenSearchDomainStack extends Stack {
       removalPolicy: props.domainRemovalPolicy
     });
 
-    const endpointParameterName = props.endpointParameterName ?? `${deployId}/osClusterEndpoint`
+    const endpointParameterName = props.endpointParameterName ?? "osClusterEndpoint"
     new StringParameter(this, 'SSMParameterOpenSearchEndpoint', {
       description: 'OpenSearch migration parameter for OpenSearch endpoint',
-      parameterName: `/migration/${props.stage}/${endpointParameterName}`,
+      parameterName: `/migration/${props.stage}/${deployId}/${endpointParameterName}`,
       stringValue: domain.domainEndpoint
     });
 
