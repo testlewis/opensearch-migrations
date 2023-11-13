@@ -184,3 +184,17 @@ test('Test invalid domain removal policy type throws error', () => {
 
     expect(createStackFunc).toThrowError()
 })
+
+test('Test analytics stacks enabled, creates two opensearch domains', () => {
+
+    const contextOptions = {
+        migrationAnalyticsServiceEnabled: true,
+        migrationAssistanceEnabled: true,
+        vpcEnabled: true,
+        migrationConsoleServiceEnabled: true,
+    }
+
+    const openSearchStacks =  createStackComposer(contextOptions)
+    const domainStacks = openSearchStacks.stacks.filter((s) => s instanceof OpenSearchDomainStack)
+    domainStacks.length == 2
+})

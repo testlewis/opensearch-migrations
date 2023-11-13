@@ -96,10 +96,10 @@ export class StackComposer {
         const kafkaBrokerServiceEnabled = getContextForType('kafkaBrokerServiceEnabled', 'boolean')
         const kafkaZookeeperServiceEnabled = getContextForType('kafkaZookeeperServiceEnabled', 'boolean')
         const fetchMigrationEnabled = getContextForType('fetchMigrationEnabled', 'boolean')
-        const migrationAnalyticsServiceEnabled = getContextForType('migrationAnalyticsServiceEnabled', 'boolean')
         const dpPipelineTemplatePath = getContextForType('dpPipelineTemplatePath', 'string')
         const sourceClusterEndpoint = getContextForType('sourceClusterEndpoint', 'string')
 
+        const migrationAnalyticsServiceEnabled = getContextForType('migrationAnalyticsServiceEnabled', 'boolean')
         const analyticsDomainEngineVersion = getContextForType('analyticsDomainEngineVersion', 'string')
         const analyticsDomainDataNodeType = getContextForType('analyticsDomainDataNodeType', 'string')
         const analyticsDomainDataNodeCount = getContextForType('analyticsDomainDataNodeCount', 'number')
@@ -107,19 +107,12 @@ export class StackComposer {
         const analyticsDomainDedicatedManagerNodeCount = getContextForType('analyticsDomainDedicatedManagerNodeCount', 'number')
         const analyticsDomainWarmNodeType = getContextForType('analyticsDomainWarmNodeType', 'string')
         const analyticsDomainWarmNodeCount = getContextForType('analyticsDomainWarmNodeCount', 'number')
-        // const analyticsDomainUseUnsignedBasicAuth = getContextForType('analyticsDomainUseUnsignedBasicAuth', 'boolean')
-        // const analyticsDomainFineGrainedManagerUserARN = getContextForType('analyticsDomainFineGrainedManagerUserARN', 'string')
-        // const analyticsDomainFineGrainedManagerUserName = getContextForType('analyticsDomainFineGrainedManagerUserName', 'string')
-        // const analyticsDomainFineGrainedManagerUserSecretManagerKeyARN = getContextForType('analyticsDomainFineGrainedManagerUserSecretManagerKeyARN', 'string')
-        const analyticsDomainEnforceHTTPS = getContextForType('analyticsDomainEnforceHTTPS', 'boolean')
         const analyticsDomainEbsEnabled = getContextForType('analyticsDomainEbsEnabled', 'boolean')
         const analyticsDomainEbsIops = getContextForType('analyticsDomainEbsIops', 'number')
         const analyticsDomainEbsVolumeSize = getContextForType('analyticsDomainEbsVolumeSize', 'number')
-        const analyticsDomainEncryptionAtRestEnabled = getContextForType('analyticsDomainEncryptionAtRestEnabled', 'boolean')
         const analyticsDomainEncryptionAtRestKmsKeyARN = getContextForType("analyticsDomainEncryptionAtRestKmsKeyARN", 'string')
         const analyticsDomainLoggingAppLogEnabled = getContextForType('analyticsDomainLoggingAppLogEnabled', 'boolean')
         const analyticsDomainLoggingAppLogGroupARN = getContextForType('analyticsDomainLoggingAppLogGroupARN', 'string')
-        const analyticsDomainNoneToNodeEncryptionEnabled = getContextForType('analyticsDomainNodeToNodeEncryptionEnabled', 'boolean')
 
         if (!stage) {
             throw new Error("Required context field 'stage' is not present")
@@ -269,7 +262,7 @@ export class StackComposer {
         let migrationAnalyticsStack;
         let analyticsDomainStack;
         if (migrationAnalyticsServiceEnabled && networkStack) {
-            const analyticsDomainName = "migration-analytics-domain-2"
+            const analyticsDomainName = "migration-analytics-domain"
             const openAccessPolicy = new PolicyStatement({
                 effect: Effect.ALLOW,
                 principals: [new AnyPrincipal()],
@@ -280,59 +273,39 @@ export class StackComposer {
             {
                 stackName: `OSMigrations-${stage}-${region}-AnalyticsDomain`,
                 description: "This stack prepares the Migration Analytics OS Domain",
-                version: getEngineVersion(analyticsDomainEngineVersion ?? engineVersion),
+                domainAccessSecurityGroupParameter: "analyticsDomainSGId",
+                endpointParameterName: "analyticsDomainEndpoint",
+                version: getEngineVersion(analyticsDomainEngineVersion ?? engineVersion),  // If no analytics version is specified, use the same as the target cluster
                 domainName: analyticsDomainName,
-                // dataNodeInstanceType: props.dataNodeInstanceType,
-                dataNodes: analyticsDomainDataNodeCount ?? availabilityZoneCount,
-                // dedicatedManagerNodeType: props.dedicatedManagerNodeType,
-                // dedicatedManagerNodeCount: props.dedicatedManagerNodeCount,
-                // warmInstanceType: props.warmInstanceType,
-                enableDemoAdmin: false,
-                enforceHTTPS: true,
-                nodeToNodeEncryptionEnabled: true,
-                encryptionAtRestEnabled: true,
-                // ebsEnabled: props.ebsEnabled,
-                // ebsIops: props.ebsIops,
-                // ebsVolumeSize: props.ebsVolumeSize,
-                // ebsVolumeType: props.ebsVolumeType,
-                // encryptionAtRestKmsKeyARN: props.encryptionAtRestKmsKeyARN,
-                // appLogEnabled: props.appLogEnabled,
-                // appLogGroup: props.appLogGroup,
                 vpc: networkStack.vpc,
                 vpcSubnetIds: vpcSubnetIds,
                 vpcSecurityGroupIds: vpcSecurityGroupIds,
                 availabilityZoneCount: availabilityZoneCount,
-                domainAccessSecurityGroupParameter: "analyticsDomainSGId",
-                endpointParameterName: "analyticsDomainEndpoint",
+                dataNodeInstanceType: analyticsDomainDataNodeType,
+                dataNodes: analyticsDomainDataNodeCount ?? availabilityZoneCount,  // There's probably a better way to do this, but the node count must be >= the zone count, and possibly must be the same even/odd as zone count
+                dedicatedManagerNodeType: analyticsDomainDedicatedManagerNodeType,
+                dedicatedManagerNodeCount: analyticsDomainDedicatedManagerNodeCount,
+                warmInstanceType: analyticsDomainWarmNodeType,
+                warmNodes: analyticsDomainWarmNodeCount,
+                enableDemoAdmin: false,
+                enforceHTTPS: true,
+                nodeToNodeEncryptionEnabled: true,
+                encryptionAtRestEnabled: true,
+                encryptionAtRestKmsKeyARN: analyticsDomainEncryptionAtRestKmsKeyARN,
+                appLogEnabled: analyticsDomainLoggingAppLogEnabled,
+                appLogGroup: analyticsDomainLoggingAppLogGroupARN,
+                ebsEnabled: analyticsDomainEbsEnabled,
+                ebsIops: analyticsDomainEbsIops,
+                ebsVolumeSize: analyticsDomainEbsVolumeSize,
+                ebsVolumeType: analyticsDomainEbsVolumeType,
                 stage: stage,
                 defaultDeployId: defaultDeployId,
                 accessPolicies: [openAccessPolicy],
                 ...props
             })
             migrationAnalyticsStack = new MigrationAnalyticsStack(scope, "migration-analytics", {
-                vpc:networkStack.vpc,
-                vpcSubnetIds: vpcSubnetIds,
-                vpcSecurityGroupIds: vpcSecurityGroupIds,
-                availabilityZoneCount: availabilityZoneCount,
                 stackName: `OSMigrations-${stage}-${region}-MigrationAnalytics`,
-                description: "This stack contains resources for the Open Telemetry Collector and Analytics OS Cluster",
-                engineVersion: getEngineVersion(analyticsDomainEngineVersion ?? engineVersion), // if no analytics version is specified, use the same as the target cluster
-                dataNodeInstanceType: analyticsDomainDataNodeType,
-                dataNodes: analyticsDomainDataNodeCount ?? availabilityZoneCount, // There's probably a better way to do this, but the node count must be >= the zone count, and possibly must be the same even/odd as zone count
-                dedicatedManagerNodeType: analyticsDomainDedicatedManagerNodeType,
-                dedicatedManagerNodeCount: analyticsDomainDedicatedManagerNodeCount,
-                warmInstanceType: analyticsDomainWarmNodeType,
-                warmNodes: analyticsDomainWarmNodeCount,
-                enforceHTTPS: analyticsDomainEnforceHTTPS,
-                ebsEnabled: analyticsDomainEbsEnabled,
-                ebsIops: analyticsDomainEbsIops,
-                ebsVolumeSize: analyticsDomainEbsVolumeSize,
-                ebsVolumeType: analyticsDomainEbsVolumeType,
-                encryptionAtRestEnabled: analyticsDomainEncryptionAtRestEnabled,
-                encryptionAtRestKmsKeyARN: analyticsDomainEncryptionAtRestKmsKeyARN,
-                appLogEnabled: analyticsDomainLoggingAppLogEnabled,
-                appLogGroup: analyticsDomainLoggingAppLogGroupARN,
-                nodeToNodeEncryptionEnabled: analyticsDomainNoneToNodeEncryptionEnabled,
+                vpc:networkStack.vpc,
                 stage: stage,
                 defaultDeployId: defaultDeployId,
                 ...props,
