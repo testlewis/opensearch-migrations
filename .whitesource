@@ -2,11 +2,11 @@
   "scanSettings": {
     "configMode": "LOCAL",
     "projectToken": "",
-    "baseBranches": []
+    "baseBranches": ["main"]
   },
   "checkRunSettings": {
     "vulnerableCheckRunConclusionLevel": "failure",
-    "displayMode": "diff",
+    "displayMode": "baseline",
     "useMendCheckNames": true
   },
   "issueSettings": {
