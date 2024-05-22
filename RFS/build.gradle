@@ -32,6 +32,8 @@ ext {
 }
 
 dependencies {
+    implementation project(":commonDependencyVersionConstraints")
+    
     implementation 'com.beust:jcommander:1.81'
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.16.2'
     implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-smile:2.16.2'
